@@ -1,62 +1,679 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Sociedad de Jóvenes</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <title>SEVIDA · Sociedad de Jóvenes — Rendición de Cuentas</title>
+    <link rel="icon" href="logo-sevida.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="Estilos_Sociedad.css">
 </head>
 
 <body>
 
-    <div class="contenedor">
+    <!-- ============ PANTALLA DE LOGIN ============ -->
+    <div id="pantalla-login" class="pantalla-login">
+        <div class="login-caja">
+            <img src="logo-sevida.png" alt="Logo SEVIDA" class="login-logo">
+            <h1 class="login-titulo">SEVIDA</h1>
+            <p class="login-subtitulo">Sociedad de Jóvenes &mdash; Rendición de Cuentas</p>
 
-        <header>
-            <h1>Dashboard</h1>
-            <p>Sociedad de Jóvenes</p>
-        </header>
-
-        <main>
-
-            <section class="tarjetas">
-
-                <div class="tarjeta">
-                    <h3>Ingresos</h3>
-                    <p>Bs 1.250</p>
+            <form id="form-login" class="form-login" autocomplete="on">
+                <div class="campo">
+                    <label for="login-email">Correo electrónico</label>
+                    <input type="email" id="login-email" required autocomplete="username"
+                        placeholder="tucorreo@ejemplo.com">
                 </div>
-
-                <div class="tarjeta">
-                    <h3>Gastos</h3>
-                    <p>Bs 450</p>
+                <div class="campo">
+                    <label for="login-password">Contraseña</label>
+                    <input type="password" id="login-password" required autocomplete="current-password"
+                        placeholder="••••••••">
                 </div>
-
-                <div class="tarjeta">
-                    <h3>Saldo</h3>
-                    <p>Bs 800</p>
-                </div>
-
-            </section>
-
-            <section class="panel">
-                <h2>Resumen</h2>
-                <p>Bienvenido al sistema de control de la Sociedad de Jóvenes.</p>
-
-                <button onclick="mostrarMensaje()">
-                    Ver información
-                </button>
-
-                <p id="mensaje"></p>
-            </section>
-
-        </main>
-
-        <footer>
-            <p>© 2026 Sociedad de Jóvenes</p>
-        </footer>
-
+                <p id="login-error" class="mensaje-error oculto"></p>
+                <button type="submit" id="btn-login" class="btn btn-primario btn-ancho">Ingresar</button>
+            </form>
+            <p class="login-pie">Acceso solo para miembros habilitados de la Sociedad de Jóvenes.</p>
+        </div>
     </div>
 
-    <script src="Javascript.js"></script>
+    <!-- ============ APLICACIÓN ============ -->
+    <div id="app" class="app oculto">
 
+        <header class="topbar">
+            <button id="btn-menu-movil" class="btn-icono btn-menu-movil" aria-label="Abrir menú" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+            <div class="topbar-marca">
+                <img src="logo-sevida.png" alt="SEVIDA" class="topbar-logo">
+                <span>SEVIDA</span>
+            </div>
+            <div class="topbar-usuario">
+                <div class="usuario-info">
+                    <span id="usuario-nombre" class="usuario-nombre"></span>
+                    <span id="usuario-rol" class="badge-rol"></span>
+                </div>
+                <button id="btn-logout" class="btn btn-secundario btn-sm" type="button">Salir</button>
+            </div>
+        </header>
+
+        <div class="layout">
+            <div id="fondo-sidebar-movil" class="fondo-sidebar-movil oculto"></div>
+            <nav id="sidebar" class="sidebar">
+                <a href="#" data-vista="dashboard" class="nav-link nav-activo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="9" rx="1.5"></rect>
+                        <rect x="14" y="3" width="7" height="5" rx="1.5"></rect>
+                        <rect x="14" y="12" width="7" height="9" rx="1.5"></rect>
+                        <rect x="3" y="16" width="7" height="5" rx="1.5"></rect>
+                    </svg>
+                    <span>Panel</span>
+                </a>
+                <a href="#" data-vista="ingresos" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <line x1="12" y1="19" x2="12" y2="5"></line>
+                        <polyline points="5 12 12 5 19 12"></polyline>
+                    </svg>
+                    <span>Ingresos</span>
+                </a>
+                <a href="#" data-vista="egresos" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <polyline points="19 12 12 19 5 12"></polyline>
+                    </svg>
+                    <span>Egresos</span>
+                </a>
+                <a href="#" data-vista="historial" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <polyline points="12 7 12 12 15.5 14"></polyline>
+                    </svg>
+                    <span>Historial</span>
+                </a>
+                <a href="#" data-vista="informes" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"></path>
+                        <polyline points="14 3 14 8 19 8"></polyline>
+                        <line x1="9" y1="13" x2="15" y2="13"></line>
+                        <line x1="9" y1="17" x2="15" y2="17"></line>
+                    </svg>
+                    <span>Informes</span>
+                </a>
+                <div class="nav-separador solo-admin oculto"></div>
+                <a href="#" data-vista="categorias" class="nav-link solo-admin oculto">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path
+                            d="M20.6 12.6 12.7 20.5a2 2 0 0 1-2.8 0l-7-7a2 2 0 0 1 0-2.8L10.8 2.7a2 2 0 0 1 1.4-.6H19a1 1 0 0 1 1 1v6.5a2 2 0 0 1-.6 1.4z">
+                        </path>
+                        <circle cx="15.5" cy="6.5" r="1.2"></circle>
+                    </svg>
+                    <span>Categorías</span>
+                </a>
+                <a href="#" data-vista="usuarios" class="nav-link solo-admin oculto">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>Usuarios</span>
+                </a>
+                <a href="#" data-vista="configuracion" class="nav-link solo-admin oculto">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                    <span>Configuración</span>
+                </a>
+            </nav>
+
+            <main class="contenido">
+
+                <!-- ================= DASHBOARD ================= -->
+                <section id="vista-dashboard" class="vista">
+                    <div class="vista-header">
+                        <h2>Panel general</h2>
+                        <p class="vista-subtitulo" id="dash-periodo-actual">&nbsp;</p>
+                    </div>
+
+                    <div class="tarjeta-saldo">
+                        <span class="tarjeta-saldo-etiqueta">Saldo actual</span>
+                        <span class="tarjeta-saldo-monto" id="dash-saldo">Bs 0.00</span>
+                    </div>
+
+                    <div class="grid-estadisticas">
+                        <div class="stat-chip">
+                            <span class="stat-valor" id="dash-total-ingresos">Bs 0.00</span>
+                            <span class="stat-etiqueta">Total ingresos</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-valor" id="dash-total-egresos">Bs 0.00</span>
+                            <span class="stat-etiqueta">Total egresos</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-valor" id="dash-cant-ingresos">0</span>
+                            <span class="stat-etiqueta">Cant. de ingresos</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-valor" id="dash-cant-egresos">0</span>
+                            <span class="stat-etiqueta">Cant. de egresos</span>
+                        </div>
+                        <div class="stat-chip stat-ok">
+                            <span class="stat-valor" id="dash-con-comprobante">0</span>
+                            <span class="stat-etiqueta">Con comprobante</span>
+                        </div>
+                        <div class="stat-chip stat-alerta">
+                            <span class="stat-valor" id="dash-sin-comprobante">0</span>
+                            <span class="stat-etiqueta">Sin comprobante</span>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <h3>Movimientos recientes</h3>
+                        <div class="tabla-envoltorio">
+                            <table class="tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Concepto</th>
+                                        <th>Categoría</th>
+                                        <th>Monto</th>
+                                        <th>Comprobante</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dash-tabla-recientes">
+                                    <tr>
+                                        <td colspan="7" class="celda-vacia">Cargando…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ================= INGRESOS ================= -->
+                <section id="vista-ingresos" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Ingresos</h2>
+                        <button id="btn-nuevo-ingreso" class="btn btn-primario solo-admin oculto" type="button">+ Nuevo
+                            ingreso</button>
+                    </div>
+                    <div class="panel">
+                        <div class="tabla-envoltorio">
+                            <table class="tabla">
+                                <thead>
+                                    <tr>
+                                        <th>N°</th>
+                                        <th>Fecha</th>
+                                        <th>Concepto</th>
+                                        <th>Categoría</th>
+                                        <th>Responsable</th>
+                                        <th>Monto</th>
+                                        <th>Comprobante</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-ingresos">
+                                    <tr>
+                                        <td colspan="8" class="celda-vacia">Cargando…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ================= EGRESOS ================= -->
+                <section id="vista-egresos" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Egresos</h2>
+                        <button id="btn-nuevo-egreso" class="btn btn-primario solo-admin oculto" type="button">+ Nuevo
+                            egreso</button>
+                    </div>
+                    <div class="panel">
+                        <div class="tabla-envoltorio">
+                            <table class="tabla">
+                                <thead>
+                                    <tr>
+                                        <th>N°</th>
+                                        <th>Fecha</th>
+                                        <th>Concepto</th>
+                                        <th>Categoría</th>
+                                        <th>Responsable</th>
+                                        <th>Monto</th>
+                                        <th>Comprobante</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-egresos">
+                                    <tr>
+                                        <td colspan="8" class="celda-vacia">Cargando…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ================= HISTORIAL ================= -->
+                <section id="vista-historial" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Historial de movimientos</h2>
+                    </div>
+                    <div class="panel">
+                        <div class="filtros">
+                            <div class="campo">
+                                <label for="hist-buscar">Buscar</label>
+                                <input type="text" id="hist-buscar" placeholder="Concepto o N° de movimiento">
+                            </div>
+                            <div class="campo">
+                                <label for="hist-tipo">Tipo</label>
+                                <select id="hist-tipo">
+                                    <option value="">Todos</option>
+                                    <option value="ingreso">Ingresos</option>
+                                    <option value="egreso">Egresos</option>
+                                </select>
+                            </div>
+                            <div class="campo">
+                                <label for="hist-categoria">Categoría</label>
+                                <select id="hist-categoria">
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+                            <div class="campo">
+                                <label for="hist-periodo">Período</label>
+                                <select id="hist-periodo">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+                            <div class="campo">
+                                <label for="hist-desde">Desde</label>
+                                <input type="date" id="hist-desde">
+                            </div>
+                            <div class="campo">
+                                <label for="hist-hasta">Hasta</label>
+                                <input type="date" id="hist-hasta">
+                            </div>
+                            <button id="btn-limpiar-filtros" class="btn btn-secundario btn-sm" type="button">Limpiar
+                                filtros</button>
+                        </div>
+                        <div class="tabla-envoltorio">
+                            <table class="tabla">
+                                <thead>
+                                    <tr>
+                                        <th>N°</th>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Concepto</th>
+                                        <th>Categoría</th>
+                                        <th>Responsable</th>
+                                        <th>Monto</th>
+                                        <th>Estado</th>
+                                        <th>Comprobante</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-historial">
+                                    <tr>
+                                        <td colspan="10" class="celda-vacia">Cargando…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p id="historial-contador" class="texto-ayuda"></p>
+                    </div>
+                </section>
+
+                <!-- ================= INFORMES ================= -->
+                <section id="vista-informes" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Informes trimestrales</h2>
+                    </div>
+                    <div class="panel">
+                        <div class="filtros">
+                            <div class="campo campo-crece">
+                                <label for="informe-periodo">Selecciona un período</label>
+                                <select id="informe-periodo"></select>
+                            </div>
+                            <button id="btn-generar-informe" class="btn btn-primario" type="button">Generar
+                                informe</button>
+                        </div>
+                    </div>
+
+                    <div id="informe-resultado" class="panel oculto">
+                        <div class="informe-acciones no-imprimir">
+                            <span id="informe-estado-periodo" class="badge-estado"></span>
+                            <div class="informe-botones">
+                                <button id="btn-cerrar-periodo" class="btn btn-advertencia solo-admin oculto"
+                                    type="button">Cerrar período</button>
+                                <button id="btn-imprimir-informe" class="btn btn-secundario"
+                                    type="button">Imprimir</button>
+                                <button id="btn-exportar-word" class="btn btn-primario" type="button">Exportar a
+                                    Word</button>
+                            </div>
+                        </div>
+
+                        <div id="informe-imprimible" class="informe-imprimible">
+                            <div class="informe-encabezado">
+                                <h2 id="informe-nombre-sociedad">Sociedad de Jóvenes</h2>
+                                <p id="informe-nombre-iglesia"></p>
+                                <h3 id="informe-titulo-periodo"></h3>
+                                <p id="informe-fecha-generacion" class="texto-ayuda"></p>
+                            </div>
+
+                            <h4>Resumen financiero</h4>
+                            <div class="tabla-envoltorio">
+                                <table class="tabla tabla-resumen">
+                                    <tbody>
+                                        <tr>
+                                            <td>Saldo inicial</td>
+                                            <td id="informe-saldo-inicial"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Total ingresos</td>
+                                            <td id="informe-total-ingresos"></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Total egresos</td>
+                                            <td id="informe-total-egresos"></td>
+                                        </tr>
+                                        <tr class="fila-destacada">
+                                            <td>Saldo final</td>
+                                            <td id="informe-saldo-final"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h4>Detalle de ingresos</h4>
+                            <div class="tabla-envoltorio">
+                                <table class="tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>N°</th>
+                                            <th>Concepto</th>
+                                            <th>Categoría</th>
+                                            <th>Responsable</th>
+                                            <th>Monto</th>
+                                            <th>Comprobante</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="informe-tabla-ingresos"></tbody>
+                                </table>
+                            </div>
+
+                            <h4>Detalle de egresos</h4>
+                            <div class="tabla-envoltorio">
+                                <table class="tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>N°</th>
+                                            <th>Concepto</th>
+                                            <th>Categoría</th>
+                                            <th>Responsable</th>
+                                            <th>Monto</th>
+                                            <th>Comprobante</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="informe-tabla-egresos"></tbody>
+                                </table>
+                            </div>
+
+                            <h4>Documentación</h4>
+                            <p id="informe-resumen-documentacion" class="texto-ayuda"></p>
+
+                            <div class="informe-firmas">
+                                <div class="firma"><span class="firma-linea"></span><span>Tesorero</span></div>
+                                <div class="firma"><span class="firma-linea"></span><span>Revisor/a</span></div>
+                                <div class="firma"><span class="firma-linea"></span><span>Presidente de la Sociedad de
+                                        Jóvenes</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ================= CATEGORÍAS (admin) ================= -->
+                <section id="vista-categorias" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Categorías</h2>
+                    </div>
+                    <div class="panel-doble">
+                        <div class="panel">
+                            <h3>Categorías de ingreso</h3>
+                            <ul id="lista-categorias-ingreso" class="lista-categorias"></ul>
+                        </div>
+                        <div class="panel">
+                            <h3>Categorías de egreso</h3>
+                            <ul id="lista-categorias-egreso" class="lista-categorias"></ul>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <h3>Agregar categoría</h3>
+                        <form id="form-nueva-categoria" class="formulario-en-linea">
+                            <div class="campo campo-crece">
+                                <label for="cat-nombre">Nombre</label>
+                                <input type="text" id="cat-nombre" required placeholder="Ej: Campamentos">
+                            </div>
+                            <div class="campo">
+                                <label for="cat-tipo">Tipo</label>
+                                <select id="cat-tipo">
+                                    <option value="ingreso">Ingreso</option>
+                                    <option value="egreso">Egreso</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primario">Agregar</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- ================= USUARIOS (admin) ================= -->
+                <section id="vista-usuarios" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Usuarios</h2>
+                    </div>
+                    <div class="panel">
+                        <div class="tabla-envoltorio">
+                            <table class="tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Correo</th>
+                                        <th>Rol</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-usuarios">
+                                    <tr>
+                                        <td colspan="3" class="celda-vacia">Cargando…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <h3>Crear miembro</h3>
+                        <p class="texto-ayuda">Se crea la cuenta de acceso sin cerrar tu sesión de administrador.</p>
+                        <form id="form-nuevo-usuario" class="formulario">
+                            <div class="campo">
+                                <label for="usr-nombre">Nombre completo</label>
+                                <input type="text" id="usr-nombre" required>
+                            </div>
+                            <div class="campo">
+                                <label for="usr-email">Correo electrónico</label>
+                                <input type="email" id="usr-email" required>
+                            </div>
+                            <div class="campo">
+                                <label for="usr-password">Contraseña temporal</label>
+                                <input type="text" id="usr-password" required minlength="6"
+                                    placeholder="Mínimo 6 caracteres">
+                            </div>
+                            <div class="campo">
+                                <label for="usr-rol">Rol</label>
+                                <select id="usr-rol">
+                                    <option value="miembro">Miembro</option>
+                                    <option value="admin">Administrador</option>
+                                </select>
+                            </div>
+                            <button type="submit" id="btn-crear-usuario" class="btn btn-primario">Crear usuario</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- ================= CONFIGURACIÓN (admin) ================= -->
+                <section id="vista-configuracion" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Configuración</h2>
+                    </div>
+                    <div class="panel">
+                        <form id="form-configuracion" class="formulario">
+                            <div class="campo">
+                                <label for="config-nombre-sociedad">Nombre de la Sociedad de Jóvenes</label>
+                                <input type="text" id="config-nombre-sociedad" required>
+                            </div>
+                            <div class="campo">
+                                <label for="config-nombre-iglesia">Nombre de la iglesia</label>
+                                <input type="text" id="config-nombre-iglesia">
+                            </div>
+                            <div class="campo">
+                                <label for="config-saldo-inicial">Saldo inicial general (Bs)</label>
+                                <input type="number" id="config-saldo-inicial" step="0.01">
+                                <span class="texto-ayuda">Saldo con el que arrancó la cuenta antes de usar este sistema.
+                                    Se usa una sola vez como base de todos los cálculos.</span>
+                            </div>
+                            <button type="submit" class="btn btn-primario">Guardar configuración</button>
+                        </form>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- ============ MODAL: Nuevo / Ver / Editar movimiento ============ -->
+    <div id="modal-movimiento" class="modal oculto">
+        <div class="modal-contenido">
+            <div class="modal-header">
+                <h3 id="modal-movimiento-titulo">Nuevo ingreso</h3>
+                <button class="btn-icono btn-cerrar-modal" data-cerrar="modal-movimiento" type="button"
+                    aria-label="Cerrar">✕</button>
+            </div>
+            <form id="form-movimiento" class="formulario modal-body">
+                <input type="hidden" id="mov-id-edicion" value="">
+                <input type="hidden" id="mov-tipo" value="ingreso">
+
+                <div id="mov-estado-info" class="mensaje-anulado oculto"></div>
+
+                <div class="fila-2">
+                    <div class="campo">
+                        <label>N° de movimiento</label>
+                        <div class="campo-solo-lectura" id="mov-numero-display">Se asignará al guardar</div>
+                    </div>
+                    <div class="campo">
+                        <label for="mov-fecha">Fecha</label>
+                        <input type="date" id="mov-fecha" required>
+                    </div>
+                </div>
+
+                <div class="campo">
+                    <label for="mov-concepto">Concepto</label>
+                    <input type="text" id="mov-concepto" required placeholder="Ej: Ofrenda del culto de jóvenes">
+                </div>
+
+                <div class="fila-2">
+                    <div class="campo">
+                        <label for="mov-categoria">Categoría</label>
+                        <select id="mov-categoria" required></select>
+                    </div>
+                    <div class="campo">
+                        <label for="mov-responsable">Responsable</label>
+                        <input type="text" id="mov-responsable" required>
+                    </div>
+                </div>
+
+                <div class="campo oculto" id="campo-proveedor">
+                    <label for="mov-proveedor">Proveedor</label>
+                    <input type="text" id="mov-proveedor" placeholder="Si corresponde">
+                </div>
+
+                <div class="fila-2">
+                    <div class="campo">
+                        <label for="mov-monto">Monto (Bs)</label>
+                        <input type="number" id="mov-monto" required min="0.01" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="campo">
+                        <label for="mov-metodo" id="label-metodo">Método de ingreso</label>
+                        <select id="mov-metodo">
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia bancaria">Transferencia bancaria</option>
+                            <option value="Depósito">Depósito</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="campo">
+                    <label for="mov-observacion">Observación</label>
+                    <textarea id="mov-observacion" rows="2" placeholder="Opcional"></textarea>
+                </div>
+
+                <div class="campo">
+                    <label for="mov-comprobante">Comprobante (imagen o PDF)</label>
+                    <input type="file" id="mov-comprobante" accept="image/*,.pdf">
+                    <div id="mov-comprobante-actual" class="texto-ayuda oculto"></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" id="btn-anular-movimiento" class="btn btn-peligro oculto">Anular
+                        movimiento</button>
+                    <button type="button" id="btn-habilitar-edicion" class="btn btn-secundario oculto">Editar</button>
+                    <button type="button" class="btn btn-texto" data-cerrar="modal-movimiento">Cancelar</button>
+                    <button type="submit" id="btn-guardar-movimiento" class="btn btn-primario">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============ MODAL: Ver comprobante ============ -->
+    <div id="modal-comprobante" class="modal oculto">
+        <div class="modal-contenido modal-angosto">
+            <div class="modal-header">
+                <h3>Comprobante</h3>
+                <button class="btn-icono btn-cerrar-modal" data-cerrar="modal-comprobante" type="button"
+                    aria-label="Cerrar">✕</button>
+            </div>
+            <div class="modal-body" id="comprobante-contenido"></div>
+        </div>
+    </div>
+
+    <!-- ============ TOAST ============ -->
+    <div id="toast" class="toast oculto"></div>
+
+    <!-- Librería para exportar a Word (se usa solo al presionar "Exportar a Word") -->
+    <script src="https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.umd.cjs"></script>
+
+    <script type="module" src="Javascript.js"></script>
 </body>
+
 </html>
