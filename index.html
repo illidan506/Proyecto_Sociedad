@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
     <title>SEVIDA · Sociedad de Jóvenes — Rendición de Cuentas</title>
-    <link rel="icon" href="logo-sevida.jpeg" type="image/png">
+    <link rel="icon" href="logo-sevida.png" type="image/png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -19,7 +19,7 @@
     <!-- ============ PANTALLA DE LOGIN ============ -->
     <div id="pantalla-login" class="pantalla-login">
         <div class="login-caja">
-            <img src="logo-sevida.jpeg" alt="Logo SEVIDA" class="login-logo">
+            <img src="logo-sevida.png" alt="Logo SEVIDA" class="login-logo">
             <h1 class="login-titulo">SEVIDA</h1>
             <p class="login-subtitulo">Sociedad de Jóvenes &mdash; Rendición de Cuentas</p>
 
@@ -53,7 +53,7 @@
                 </svg>
             </button>
             <div class="topbar-marca">
-                <img src="logo-sevida.jpeg" alt="SEVIDA" class="topbar-logo">
+                <img src="logo-sevida.png" alt="SEVIDA" class="topbar-logo">
                 <span>SEVIDA</span>
             </div>
             <div class="topbar-usuario">
@@ -111,6 +111,15 @@
                         <line x1="9" y1="17" x2="15" y2="17"></line>
                     </svg>
                     <span>Informes</span>
+                </a>
+                <a href="#" data-vista="actividades" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M4 4h16v4H4z"></path>
+                        <path d="M4 12h10v4H4z"></path>
+                        <path d="M4 20h7v0H4z"></path>
+                    </svg>
+                    <span>Actividades</span>
                 </a>
                 <div class="nav-separador solo-admin oculto"></div>
                 <a href="#" data-vista="categorias" class="nav-link solo-admin oculto">
@@ -215,8 +224,7 @@
                 <section id="vista-ingresos" class="vista oculto">
                     <div class="vista-header">
                         <h2>Ingresos</h2>
-                        <button id="btn-nuevo-ingreso" class="btn btn-primario solo-admin oculto" type="button">+ Nuevo
-                            ingreso</button>
+                        <button id="btn-nuevo-ingreso" class="btn btn-primario" type="button">+ Nuevo ingreso</button>
                     </div>
                     <div class="panel">
                         <div class="tabla-envoltorio">
@@ -247,8 +255,7 @@
                 <section id="vista-egresos" class="vista oculto">
                     <div class="vista-header">
                         <h2>Egresos</h2>
-                        <button id="btn-nuevo-egreso" class="btn btn-primario solo-admin oculto" type="button">+ Nuevo
-                            egreso</button>
+                        <button id="btn-nuevo-egreso" class="btn btn-primario" type="button">+ Nuevo egreso</button>
                     </div>
                     <div class="panel">
                         <div class="tabla-envoltorio">
@@ -307,6 +314,12 @@
                                 </select>
                             </div>
                             <div class="campo">
+                                <label for="hist-actividad">Actividad</label>
+                                <select id="hist-actividad">
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+                            <div class="campo">
                                 <label for="hist-desde">Desde</label>
                                 <input type="date" id="hist-desde">
                             </div>
@@ -326,6 +339,7 @@
                                         <th>Tipo</th>
                                         <th>Concepto</th>
                                         <th>Categoría</th>
+                                        <th>Actividad</th>
                                         <th>Responsable</th>
                                         <th>Monto</th>
                                         <th>Estado</th>
@@ -335,7 +349,7 @@
                                 </thead>
                                 <tbody id="tabla-historial">
                                     <tr>
-                                        <td colspan="10" class="celda-vacia">Cargando…</td>
+                                        <td colspan="11" class="celda-vacia">Cargando…</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -454,6 +468,44 @@
                     </div>
                 </section>
 
+                <!-- ================= ACTIVIDADES ================= -->
+                <section id="vista-actividades" class="vista oculto">
+                    <div class="vista-header">
+                        <h2>Actividades</h2>
+                        <p class="vista-subtitulo">Agrupa varios ingresos o egresos de un mismo evento (una venta, una
+                            campaña, etc.).</p>
+                    </div>
+                    <div class="panel">
+                        <div class="tabla-envoltorio">
+                            <table class="tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Actividad</th>
+                                        <th>Ingresos</th>
+                                        <th>Egresos</th>
+                                        <th>Movimientos</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-actividades">
+                                    <tr>
+                                        <td colspan="4" class="celda-vacia">Cargando…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <h3>Crear actividad</h3>
+                        <form id="form-nueva-actividad" class="formulario-en-linea">
+                            <div class="campo campo-crece">
+                                <label for="act-nombre">Nombre de la actividad</label>
+                                <input type="text" id="act-nombre" required placeholder="Ej: Venta de empanadas">
+                            </div>
+                            <button type="submit" class="btn btn-primario">Crear actividad</button>
+                        </form>
+                    </div>
+                </section>
+
                 <!-- ================= CATEGORÍAS (admin) ================= -->
                 <section id="vista-categorias" class="vista oculto">
                     <div class="vista-header">
@@ -501,11 +553,12 @@
                                         <th>Nombre</th>
                                         <th>Correo</th>
                                         <th>Rol</th>
+                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody id="tabla-usuarios">
                                     <tr>
-                                        <td colspan="3" class="celda-vacia">Cargando…</td>
+                                        <td colspan="4" class="celda-vacia">Cargando…</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -556,6 +609,17 @@
                                 <input type="text" id="config-nombre-iglesia">
                             </div>
                             <div class="campo">
+                                <label for="config-email-contacto">Correo de contacto</label>
+                                <input type="email" id="config-email-contacto">
+                                <span class="texto-ayuda">Aparece en el pie de página del informe de Word.</span>
+                            </div>
+                            <div class="campo">
+                                <label for="config-direccion">Dirección</label>
+                                <input type="text" id="config-direccion">
+                                <span class="texto-ayuda">También aparece en el pie de página del informe de
+                                    Word.</span>
+                            </div>
+                            <div class="campo">
                                 <label for="config-saldo-inicial">Saldo inicial general (Bs)</label>
                                 <input type="number" id="config-saldo-inicial" step="0.01">
                                 <span class="texto-ayuda">Saldo con el que arrancó la cuenta antes de usar este sistema.
@@ -598,6 +662,25 @@
                 <div class="campo">
                     <label for="mov-concepto">Concepto</label>
                     <input type="text" id="mov-concepto" required placeholder="Ej: Ofrenda del culto de jóvenes">
+                </div>
+
+                <div class="campo">
+                    <label>Registro</label>
+                    <div class="opciones-radio">
+                        <label><input type="radio" id="mov-modo-individual" name="mov-modo" value="individual" checked>
+                            Individual</label>
+                        <label><input type="radio" id="mov-modo-actividad" name="mov-modo" value="actividad"> Por
+                            actividad</label>
+                    </div>
+                </div>
+                <div class="campo oculto" id="campo-actividad">
+                    <label for="mov-actividad">Actividad</label>
+                    <select id="mov-actividad">
+                        <option value="">Selecciona una actividad…</option>
+                        <option value="__nueva__">+ Crear nueva actividad</option>
+                    </select>
+                    <input type="text" id="mov-actividad-nueva" class="oculto"
+                        placeholder="Nombre de la nueva actividad" style="margin-top:8px;">
                 </div>
 
                 <div class="fila-2">

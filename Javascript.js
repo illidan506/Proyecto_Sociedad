@@ -9,7 +9,7 @@ import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc,
+  getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
   runTransaction, serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
@@ -43,6 +43,7 @@ const RUTA = {
   categorias: "sociedad_jovenes/main/categorias",
   usuarios: "sociedad_jovenes/main/usuarios",
   configuracion: "sociedad_jovenes/main/configuracion",
+  actividades: "sociedad_jovenes/main/actividades",
 };
 
 /* ---------- 2. ESTADO GLOBAL ---------- */
@@ -52,7 +53,14 @@ const estado = {
   periodos: [],
   categorias: [],
   usuarios: [],
-  configuracion: { nombreSociedad: "Sociedad de Jóvenes Sembradores de Vida (SEVIDA)", nombreIglesia: "", saldoInicialGeneral: 0 },
+  actividades: [],
+  configuracion: {
+    nombreSociedad: "Sociedad de Jóvenes Sembradores de Vida (SEVIDA)",
+    nombreIglesia: 'Iglesia Evangélica Luterana Boliviana — Congregación "El Buen Pastor"',
+    emailContacto: "sembradoresvida.ielb@gmail.com",
+    direccion: "Calle Alacama N° 361 Zona Munaypata",
+    saldoInicialGeneral: 0,
+  },
   vistaActual: "dashboard",
   informeActual: null,
 };
@@ -172,6 +180,10 @@ async function cargarConfiguracion() {
   const snap = await getDoc(doc(db, RUTA.configuracion, "general"));
   if (snap.exists()) estado.configuracion = { ...estado.configuracion, ...snap.data() };
 }
+async function cargarActividades() {
+  const snap = await getDocs(collection(db, RUTA.actividades));
+  estado.actividades = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
 async function cargarUsuarios() {
   if (estado.usuarioActual.rol !== "admin") return;
   const snap = await getDocs(collection(db, RUTA.usuarios));
@@ -184,7 +196,7 @@ async function sembrarCategoriasSiVacio() {
   await cargarCategorias();
 }
 async function cargarDatosIniciales() {
-  await Promise.all([cargarMovimientos(), cargarPeriodos(), cargarCategorias(), cargarConfiguracion()]);
+  await Promise.all([cargarMovimientos(), cargarPeriodos(), cargarCategorias(), cargarConfiguracion(), cargarActividades()]);
   if (estado.categorias.length === 0 && estado.usuarioActual.rol === "admin") {
     await sembrarCategoriasSiVacio();
   }
@@ -256,6 +268,7 @@ const RENDERIZADORES = {
   egresos: () => renderizarTablaTipo("egreso"),
   historial: renderizarHistorial,
   informes: prepararVistaInformes,
+  actividades: renderizarActividades,
   categorias: renderizarCategorias,
   usuarios: async () => { await cargarUsuarios(); renderizarUsuarios(); },
   configuracion: cargarFormularioConfiguracion,
@@ -312,6 +325,7 @@ document.body.addEventListener("click", (evento) => {
     const accion = botonAccion.dataset.accion;
     if (accion === "ver-comprobante") mostrarComprobante(botonAccion.dataset.url, botonAccion.dataset.nombre);
     else if (accion === "ver-movimiento") abrirModalMovimientoExistente(id);
+    else if (accion === "quitar-usuario") quitarUsuario(id, botonAccion.dataset.nombre);
     return;
   }
   const fila = evento.target.closest("tr[data-id]");
@@ -401,8 +415,16 @@ function poblarSelectCategorias(tipo) {
     ? opciones.map((c) => `<option value="${escaparHTML(c.nombre)}">${escaparHTML(c.nombre)}</option>`).join("")
     : '<option value="">(agrega categorías primero)</option>';
 }
+function poblarSelectActividades(actividadIdSeleccionada) {
+  const sel = document.getElementById("mov-actividad");
+  sel.innerHTML = '<option value="">Selecciona una actividad…</option>' +
+    estado.actividades.map((a) => `<option value="${a.id}">${escaparHTML(a.nombre)}</option>`).join("") +
+    '<option value="__nueva__">+ Crear nueva actividad</option>';
+  if (actividadIdSeleccionada) sel.value = actividadIdSeleccionada;
+}
 function habilitarCamposMovimiento(habilitar) {
-  ["mov-fecha", "mov-concepto", "mov-categoria", "mov-responsable", "mov-proveedor", "mov-monto", "mov-metodo", "mov-observacion", "mov-comprobante"]
+  ["mov-fecha", "mov-concepto", "mov-categoria", "mov-responsable", "mov-proveedor", "mov-monto", "mov-metodo", "mov-observacion", "mov-comprobante",
+    "mov-modo-individual", "mov-modo-actividad", "mov-actividad", "mov-actividad-nueva"]
     .forEach((id) => { document.getElementById(id).disabled = !habilitar; });
 }
 function limpiarFormularioMovimiento() {
@@ -413,6 +435,11 @@ function limpiarFormularioMovimiento() {
   document.getElementById("mov-comprobante-actual").classList.add("oculto");
   document.getElementById("mov-comprobante-actual").innerHTML = "";
   document.getElementById("mov-estado-info").classList.add("oculto");
+  document.getElementById("mov-modo-individual").checked = true;
+  document.getElementById("campo-actividad").classList.add("oculto");
+  document.getElementById("mov-actividad-nueva").classList.add("oculto");
+  document.getElementById("mov-actividad-nueva").value = "";
+  poblarSelectActividades();
   habilitarCamposMovimiento(true);
   document.getElementById("btn-anular-movimiento").classList.add("oculto");
   document.getElementById("btn-habilitar-edicion").classList.add("oculto");
@@ -450,6 +477,15 @@ function abrirModalMovimientoExistente(id) {
   document.getElementById("mov-metodo").value = m.metodo || "Efectivo";
   document.getElementById("mov-observacion").value = m.observacion || "";
 
+  if (m.actividadId) {
+    document.getElementById("mov-modo-actividad").checked = true;
+    document.getElementById("campo-actividad").classList.remove("oculto");
+    poblarSelectActividades(m.actividadId);
+  } else {
+    document.getElementById("mov-modo-individual").checked = true;
+    document.getElementById("campo-actividad").classList.add("oculto");
+  }
+
   if (m.comprobanteURL) {
     const cont = document.getElementById("mov-comprobante-actual");
     cont.classList.remove("oculto");
@@ -483,6 +519,17 @@ document.getElementById("btn-anular-movimiento").addEventListener("click", () =>
   if (id) anularMovimiento(id);
 });
 
+document.querySelectorAll('input[name="mov-modo"]').forEach((radio) => {
+  radio.addEventListener("change", () => {
+    const esActividad = document.getElementById("mov-modo-actividad").checked;
+    document.getElementById("campo-actividad").classList.toggle("oculto", !esActividad);
+    if (!esActividad) document.getElementById("mov-actividad-nueva").classList.add("oculto");
+  });
+});
+document.getElementById("mov-actividad").addEventListener("change", (e) => {
+  document.getElementById("mov-actividad-nueva").classList.toggle("oculto", e.target.value !== "__nueva__");
+});
+
 async function subirComprobante(archivo, tipo) {
   const nombreSeguro = `${Date.now()}_${archivo.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
   const referencia = ref(storage, `sociedad_jovenes/comprobantes/${tipo}/${nombreSeguro}`);
@@ -505,7 +552,11 @@ async function obtenerSiguienteNumero(tipo) {
 
 document.getElementById("form-movimiento").addEventListener("submit", async (evento) => {
   evento.preventDefault();
-  if (estado.usuarioActual.rol !== "admin") return;
+  const idEdicion = document.getElementById("mov-id-edicion").value;
+  if (idEdicion && estado.usuarioActual.rol !== "admin") {
+    mostrarToast("Solo el administrador puede modificar un movimiento existente.", "error");
+    return;
+  }
 
   const tipo = document.getElementById("mov-tipo").value;
   const fechaStr = document.getElementById("mov-fecha").value;
@@ -518,10 +569,20 @@ document.getElementById("form-movimiento").addEventListener("submit", async (eve
   const metodo = document.getElementById("mov-metodo").value;
   const observacion = document.getElementById("mov-observacion").value.trim();
   const archivo = document.getElementById("mov-comprobante").files[0];
-  const idEdicion = document.getElementById("mov-id-edicion").value;
+  const modoActividad = document.getElementById("mov-modo-actividad").checked;
+  const valorActividadSel = document.getElementById("mov-actividad").value;
+  const nombreActividadNueva = document.getElementById("mov-actividad-nueva").value.trim();
 
   if (!fechaStr || !concepto || !categoria || !responsable || isNaN(monto) || monto <= 0) {
     mostrarToast("Completa todos los campos obligatorios con valores válidos.", "error");
+    return;
+  }
+  if (modoActividad && !valorActividadSel) {
+    mostrarToast("Selecciona una actividad o crea una nueva.", "error");
+    return;
+  }
+  if (modoActividad && valorActividadSel === "__nueva__" && !nombreActividadNueva) {
+    mostrarToast("Escribe el nombre de la nueva actividad.", "error");
     return;
   }
 
@@ -530,6 +591,18 @@ document.getElementById("form-movimiento").addEventListener("submit", async (eve
 
   try {
     const { id: periodoId } = calcularPeriodo(fecha);
+
+    let actividadId = null, actividadNombre = null;
+    if (modoActividad) {
+      if (valorActividadSel === "__nueva__") {
+        const creada = await crearActividad(nombreActividadNueva);
+        actividadId = creada.id;
+        actividadNombre = creada.nombre;
+      } else {
+        actividadId = valorActividadSel;
+        actividadNombre = estado.actividades.find((a) => a.id === valorActividadSel)?.nombre || "";
+      }
+    }
 
     if (idEdicion) {
       const movOriginal = estado.movimientos.find((m) => m.id === idEdicion);
@@ -541,6 +614,7 @@ document.getElementById("form-movimiento").addEventListener("submit", async (eve
       const datosActualizados = {
         fecha: Timestamp.fromDate(fecha), concepto, categoria, responsable,
         proveedor: tipo === "egreso" ? proveedor : "", monto, metodo, observacion,
+        actividadId, actividadNombre,
         periodoId, actualizadoEn: serverTimestamp(),
       };
       if (archivo) {
@@ -560,6 +634,7 @@ document.getElementById("form-movimiento").addEventListener("submit", async (eve
         proveedor: tipo === "egreso" ? proveedor : "", monto, metodo, observacion,
         comprobanteURL: comprobante ? comprobante.url : null,
         comprobanteNombre: comprobante ? comprobante.nombre : null,
+        actividadId, actividadNombre,
         periodoId, estado: "activo", motivoAnulacion: null,
         creadoPor: estado.usuarioActual.uid, creadoEn: serverTimestamp(), actualizadoEn: serverTimestamp(),
       });
@@ -607,12 +682,18 @@ function poblarFiltrosHistorial() {
   const periodosOrdenados = [...estado.periodos].sort((a, b) => b.id.localeCompare(a.id));
   selPer.innerHTML = '<option value="">Todos</option>' + periodosOrdenados.map((p) => `<option value="${p.id}">${escaparHTML(p.nombre)}</option>`).join("");
   selPer.value = perActual;
+
+  const selAct = document.getElementById("hist-actividad");
+  const actActual = selAct.value;
+  selAct.innerHTML = '<option value="">Todas</option>' + estado.actividades.map((a) => `<option value="${a.id}">${escaparHTML(a.nombre)}</option>`).join("");
+  selAct.value = actActual;
 }
 function aplicarFiltrosHistorial() {
   const texto = document.getElementById("hist-buscar").value.trim().toLowerCase();
   const tipo = document.getElementById("hist-tipo").value;
   const categoria = document.getElementById("hist-categoria").value;
   const periodo = document.getElementById("hist-periodo").value;
+  const actividad = document.getElementById("hist-actividad").value;
   const desde = document.getElementById("hist-desde").value;
   const hasta = document.getElementById("hist-hasta").value;
 
@@ -620,6 +701,7 @@ function aplicarFiltrosHistorial() {
     if (tipo && m.tipo !== tipo) return false;
     if (categoria && m.categoria !== categoria) return false;
     if (periodo && m.periodoId !== periodo) return false;
+    if (actividad && m.actividadId !== actividad) return false;
     const fechaMov = m.fecha.toDate();
     if (desde && fechaMov < new Date(desde + "T00:00:00")) return false;
     if (hasta && fechaMov > new Date(hasta + "T23:59:59")) return false;
@@ -633,7 +715,7 @@ function renderizarHistorial() {
   document.getElementById("historial-contador").textContent = `${resultados.length} movimiento(s) encontrado(s).`;
   const tbody = document.getElementById("tabla-historial");
   if (resultados.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="celda-vacia">No se encontraron movimientos con esos filtros.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="celda-vacia">No se encontraron movimientos con esos filtros.</td></tr>';
     return;
   }
   tbody.innerHTML = resultados.map((m) => `
@@ -643,6 +725,7 @@ function renderizarHistorial() {
       <td>${m.tipo === "ingreso" ? "Ingreso" : "Egreso"}</td>
       <td>${escaparHTML(m.concepto)}</td>
       <td>${escaparHTML(m.categoria)}</td>
+      <td>${m.actividadNombre ? escaparHTML(m.actividadNombre) : "—"}</td>
       <td>${escaparHTML(m.responsable)}</td>
       <td class="num ${m.tipo === "ingreso" ? "texto-ingreso" : "texto-egreso"}">${formatearMoneda(m.monto)}</td>
       <td>${m.estado === "anulado" ? '<span class="badge-anulado">Anulado</span>' : '<span class="badge-activo">Activo</span>'}</td>
@@ -650,11 +733,11 @@ function renderizarHistorial() {
       <td><button class="btn-fila" data-accion="ver-movimiento" data-id="${m.id}" type="button">Ver</button></td>
     </tr>`).join("");
 }
-["hist-buscar", "hist-tipo", "hist-categoria", "hist-periodo", "hist-desde", "hist-hasta"].forEach((id) => {
+["hist-buscar", "hist-tipo", "hist-categoria", "hist-periodo", "hist-actividad", "hist-desde", "hist-hasta"].forEach((id) => {
   document.getElementById(id).addEventListener("input", renderizarHistorial);
 });
 document.getElementById("btn-limpiar-filtros").addEventListener("click", () => {
-  ["hist-buscar", "hist-tipo", "hist-categoria", "hist-periodo", "hist-desde", "hist-hasta"].forEach((id) => { document.getElementById(id).value = ""; });
+  ["hist-buscar", "hist-tipo", "hist-categoria", "hist-periodo", "hist-actividad", "hist-desde", "hist-hasta"].forEach((id) => { document.getElementById(id).value = ""; });
   renderizarHistorial();
 });
 
@@ -729,7 +812,7 @@ function renderizarInformeEnPantalla() {
   document.getElementById("informe-resumen-documentacion").textContent = totalMov === 0
     ? "No hay movimientos registrados en este período."
     : `${conComprobante} de ${totalMov} movimiento(s) cuentan con comprobante adjunto.` +
-    (inf.movimientosSinComprobante.length ? ` Sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
+      (inf.movimientosSinComprobante.length ? ` Sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
 
   const badge = document.getElementById("informe-estado-periodo");
   badge.textContent = inf.periodo.cerrado ? "Período cerrado" : "Período abierto";
@@ -773,34 +856,68 @@ async function exportarInformeAWord() {
   btn.disabled = true; btn.textContent = "Generando…";
 
   try {
-    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType, VerticalAlign } = docx;
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType, VerticalAlign, ImageRun, Footer, PageNumber } = docx;
     const ANCHO_TABLA = 10466;
     const ANCHOS = [1300, 600, 2600, 1500, 1466, 1500, 1500];
+    const AZUL_BORDE = "9CC2E5";
+    const AZUL_FILA = "DEEAF6";
+    const VERDE_TOTAL = "00FF00";
+    const CELESTE_SALDO = "00FFFF";
+    const BORDE_TABLA = { style: BorderStyle.SINGLE, size: 4, color: AZUL_BORDE };
+    const BORDES_TABLA = { top: BORDE_TABLA, bottom: BORDE_TABLA, left: BORDE_TABLA, right: BORDE_TABLA, insideHorizontal: BORDE_TABLA, insideVertical: BORDE_TABLA };
+    const SIN_BORDE = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 
+    // Logo del encabezado. Si por algún motivo no carga, el informe se genera igual, solo sin logo.
+    let logoImagen = null;
+    try {
+      const respuestaLogo = await fetch("logo-sevida.png");
+      const bufferLogo = await respuestaLogo.arrayBuffer();
+      logoImagen = new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new ImageRun({ type: "png", data: bufferLogo, transformation: { width: 64, height: 64 } })],
+      });
+    } catch (e) {
+      console.warn("No se pudo cargar el logo para el Word:", e);
+    }
+
+    // Estilo de cuadros tomado del informe de referencia de SEVIDA: encabezado en
+    // blanco con la fecha en cursiva, filas de datos en celeste uniforme, bordes
+    // celestes, y los totales resaltados en verde / los saldos en celeste fuerte.
     function celda(texto, opciones = {}) {
-      const { encabezado = false, alinear = AlignmentType.LEFT, ancho } = opciones;
+      const { encabezado = false, alinear = AlignmentType.LEFT, ancho, italica = false, resaltado = null, spanColumnas } = opciones;
       return new TableCell({
         width: { size: ancho, type: WidthType.DXA },
-        shading: encabezado ? { type: ShadingType.CLEAR, color: "auto", fill: "1E88C7" } : undefined,
+        columnSpan: spanColumnas,
+        shading: resaltado ? { type: ShadingType.CLEAR, color: "auto", fill: resaltado } : (encabezado ? undefined : { type: ShadingType.CLEAR, color: "auto", fill: AZUL_FILA }),
         verticalAlign: VerticalAlign.CENTER,
         margins: { top: 70, bottom: 70, left: 90, right: 90 },
-        children: [new Paragraph({ alignment: alinear, children: [new TextRun({ text: String(texto), bold: encabezado, color: encabezado ? "FFFFFF" : "000000", size: 18 })] })],
+        children: [new Paragraph({ alignment: alinear, children: [new TextRun({ text: String(texto), bold: encabezado, italics: italica, color: "000000", size: 18 })] })],
       });
     }
     function filaTabla(valores, encabezado = false) {
-      return new TableRow({ tableHeader: encabezado, children: valores.map((v, i) => celda(v, { encabezado, ancho: ANCHOS[i], alinear: i === 5 ? AlignmentType.RIGHT : AlignmentType.LEFT })) });
+      return new TableRow({ tableHeader: encabezado, children: valores.map((v, i) => celda(v, { encabezado, italica: i === 0, ancho: ANCHOS[i], alinear: i === 5 ? AlignmentType.RIGHT : AlignmentType.LEFT })) });
+    }
+    function filaTotalDetalle(totalMonto) {
+      const anchoEtiqueta = ANCHOS[0] + ANCHOS[1] + ANCHOS[2] + ANCHOS[3] + ANCHOS[4];
+      return new TableRow({ children: [
+        celda("TOTAL", { italica: true, ancho: anchoEtiqueta, spanColumnas: 5, alinear: AlignmentType.RIGHT }),
+        celda(formatearMoneda(totalMonto), { ancho: ANCHOS[5], alinear: AlignmentType.RIGHT, resaltado: VERDE_TOTAL }),
+        celda("", { ancho: ANCHOS[6] }),
+      ] });
     }
     function bloqueDetalle(lista) {
       if (lista.length === 0) return [new Paragraph({ children: [new TextRun({ text: "No se registraron movimientos en este período.", italics: true, size: 19, color: "5B7184" })] })];
       const filas = [filaTabla(["Fecha", "N°", "Concepto", "Categoría", "Responsable", "Monto", "Comprobante"], true)];
       lista.forEach((m) => filas.push(filaTabla([formatearFecha(m.fecha), String(m.numero), m.concepto, m.categoria, m.responsable, formatearMoneda(m.monto), m.comprobanteURL ? "Sí" : "No"])));
-      return [new Table({ width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: ANCHOS, rows: filas })];
+      filas.push(filaTotalDetalle(lista.reduce((s, m) => s + m.monto, 0)));
+      return [new Table({ width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: ANCHOS, borders: BORDES_TABLA, rows: filas })];
     }
-    function filaResumen(etiqueta, valor, destacado = false) {
+    function filaResumen(etiqueta, valor, opciones = {}) {
+      const { destacado = false, resaltado = null } = opciones;
       return new TableRow({
         children: [
           new TableCell({ width: { size: 5233, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: etiqueta, bold: destacado, size: destacado ? 22 : 20 })] })] }),
-          new TableCell({ width: { size: 5233, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: valor, bold: true, size: destacado ? 22 : 20 })] })] }),
+          new TableCell({ width: { size: 5233, type: WidthType.DXA }, shading: resaltado ? { type: ShadingType.CLEAR, color: "auto", fill: resaltado } : undefined, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: valor, bold: true, size: destacado ? 22 : 20 })] })] }),
         ],
       });
     }
@@ -818,26 +935,54 @@ async function exportarInformeAWord() {
     const textoDocumentacion = totalMov === 0
       ? "No hay movimientos registrados en este período."
       : `${conComprobante} de ${totalMov} movimiento(s) cuentan con comprobante adjunto.` +
-      (inf.movimientosSinComprobante.length ? ` Movimientos sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
+        (inf.movimientosSinComprobante.length ? ` Movimientos sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
+
+    // Pie de página estilo "barra celeste con datos de contacto", tomado del informe de referencia.
+    const partesPie = [cfg.nombreSociedad || "SEVIDA"];
+    if (cfg.emailContacto) partesPie.push(`✉ ${cfg.emailContacto}`);
+    if (cfg.direccion) partesPie.push(cfg.direccion);
+    const textoPie = partesPie.join("   ·   ");
+
+    const pieDePagina = new Footer({
+      children: [new Table({
+        width: { size: ANCHO_TABLA, type: WidthType.DXA },
+        borders: { top: SIN_BORDE, bottom: SIN_BORDE, left: SIN_BORDE, right: SIN_BORDE, insideHorizontal: SIN_BORDE, insideVertical: SIN_BORDE },
+        rows: [new TableRow({ children: [new TableCell({
+          width: { size: ANCHO_TABLA, type: WidthType.DXA },
+          shading: { type: ShadingType.CLEAR, color: "auto", fill: "D3E9F5" },
+          margins: { top: 90, bottom: 90, left: 150, right: 150 },
+          children: [
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: textoPie, size: 16, color: "20303D" })] }),
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [
+              new TextRun({ text: "Página ", size: 14, color: "5B7184" }),
+              new TextRun({ children: [PageNumber.CURRENT], size: 14, color: "5B7184" }),
+              new TextRun({ text: " de ", size: 14, color: "5B7184" }),
+              new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 14, color: "5B7184" }),
+            ] }),
+          ],
+        })] })],
+      })],
+    });
 
     const documento = new Document({
       sections: [{
-        properties: { page: { margin: { top: 720, bottom: 720, left: 720, right: 720 } } },
+        properties: { page: { margin: { top: 720, bottom: 1000, left: 720, right: 720 } } },
+        footers: { default: pieDePagina },
         children: [
-          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: cfg.nombreSociedad || "Sociedad de Jóvenes", bold: true, size: 32 })] }),
+          ...(logoImagen ? [logoImagen] : []),
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: logoImagen ? 120 : 0 }, children: [new TextRun({ text: cfg.nombreSociedad || "Sociedad de Jóvenes", bold: true, size: 32 })] }),
           ...(cfg.nombreIglesia ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [new TextRun({ text: cfg.nombreIglesia, size: 22 })] })] : []),
           new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 100, after: 60 }, children: [new TextRun({ text: `Informe Trimestral — ${inf.periodo.nombre}`, bold: true, size: 26 })] }),
-          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 280 }, children: [new TextRun({ text: `Fecha de generación: ${formatearFecha(new Date())}`, size: 18, color: "5B7184" })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: `Fecha de generación: ${formatearFecha(new Date())}`, size: 18, color: "5B7184" })] }),
+          new Paragraph({ spacing: { after: 280 }, border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: "1E88C7", space: 4 } }, children: [new TextRun({ text: " " })] }),
 
           new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("Resumen financiero")] }),
-          new Table({
-            width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: [5233, 5233], rows: [
-              filaResumen("Saldo inicial", formatearMoneda(inf.saldoInicial)),
-              filaResumen("Total ingresos", formatearMoneda(inf.totalIngresos)),
-              filaResumen("Total egresos", formatearMoneda(inf.totalEgresos)),
-              filaResumen("Saldo final", formatearMoneda(inf.saldoFinal), true),
-            ]
-          }),
+          new Table({ width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: [5233, 5233], rows: [
+            filaResumen("Saldo inicial", formatearMoneda(inf.saldoInicial), { resaltado: CELESTE_SALDO }),
+            filaResumen("Total ingresos", formatearMoneda(inf.totalIngresos), { resaltado: VERDE_TOTAL }),
+            filaResumen("Total egresos", formatearMoneda(inf.totalEgresos), { resaltado: VERDE_TOTAL }),
+            filaResumen("Saldo final", formatearMoneda(inf.saldoFinal), { destacado: true, resaltado: CELESTE_SALDO }),
+          ] }),
 
           new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 320 }, children: [new TextRun("Detalle de ingresos")] }),
           ...bloqueDetalle(inf.ingresos),
@@ -874,6 +1019,42 @@ async function exportarInformeAWord() {
 }
 document.getElementById("btn-exportar-word").addEventListener("click", exportarInformeAWord);
 
+/* ---------- 14b. ACTIVIDADES ---------- */
+function renderizarActividades() {
+  const tbody = document.getElementById("tabla-actividades");
+  if (estado.actividades.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="celda-vacia">Todavía no hay actividades creadas.</td></tr>'; return; }
+  tbody.innerHTML = estado.actividades.map((a) => {
+    const movs = estado.movimientos.filter((m) => m.actividadId === a.id && m.estado === "activo");
+    const ingresos = movs.filter((m) => m.tipo === "ingreso").reduce((s, m) => s + m.monto, 0);
+    const egresos = movs.filter((m) => m.tipo === "egreso").reduce((s, m) => s + m.monto, 0);
+    return `<tr>
+      <td>${escaparHTML(a.nombre)}</td>
+      <td class="num texto-ingreso">${formatearMoneda(ingresos)}</td>
+      <td class="num texto-egreso">${formatearMoneda(egresos)}</td>
+      <td>${movs.length}</td>
+    </tr>`;
+  }).join("");
+}
+async function crearActividad(nombre) {
+  const refNueva = await addDoc(collection(db, RUTA.actividades), { nombre, creadoPor: estado.usuarioActual.uid, creadoEn: serverTimestamp() });
+  await cargarActividades();
+  return { id: refNueva.id, nombre };
+}
+document.getElementById("form-nueva-actividad").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const nombre = document.getElementById("act-nombre").value.trim();
+  if (!nombre) return;
+  try {
+    await crearActividad(nombre);
+    document.getElementById("act-nombre").value = "";
+    renderizarActividades();
+    mostrarToast("Actividad creada.", "exito");
+  } catch (err) {
+    console.error(err);
+    mostrarToast("No se pudo crear la actividad.", "error");
+  }
+});
+
 /* ---------- 15. CATEGORÍAS ---------- */
 function renderizarCategorias() {
   const ingresoUl = document.getElementById("lista-categorias-ingreso");
@@ -904,8 +1085,28 @@ document.getElementById("form-nueva-categoria").addEventListener("submit", async
 /* ---------- 16. USUARIOS ---------- */
 function renderizarUsuarios() {
   const tbody = document.getElementById("tabla-usuarios");
-  if (estado.usuarios.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="celda-vacia">No hay usuarios registrados.</td></tr>'; return; }
-  tbody.innerHTML = estado.usuarios.map((u) => `<tr><td>${escaparHTML(u.nombre || "")}</td><td>${escaparHTML(u.email || "")}</td><td>${u.rol === "admin" ? "Administrador" : "Miembro"}</td></tr>`).join("");
+  if (estado.usuarios.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="celda-vacia">No hay usuarios registrados.</td></tr>'; return; }
+  tbody.innerHTML = estado.usuarios.map((u) => `
+    <tr>
+      <td>${escaparHTML(u.nombre || "")}</td>
+      <td>${escaparHTML(u.email || "")}</td>
+      <td>${u.rol === "admin" ? "Administrador" : "Miembro"}</td>
+      <td>${u.id === estado.usuarioActual.uid ? "" : `<button class="btn-fila" data-accion="quitar-usuario" data-id="${u.id}" data-nombre="${escaparHTML(u.nombre || u.email || "")}" type="button" style="color:var(--rojo);">Quitar</button>`}</td>
+    </tr>`).join("");
+}
+async function quitarUsuario(uid, nombre) {
+  if (uid === estado.usuarioActual.uid) return;
+  const confirmacion = confirm(`¿Quitar a ${nombre} del sistema? Ya no podrá entrar ni consultar los movimientos. Esto no borra su acceso a Firebase, solo su permiso dentro de la app — si necesitas bloquearlo por completo, deshabilita su cuenta desde Authentication en la consola de Firebase.`);
+  if (!confirmacion) return;
+  try {
+    await deleteDoc(doc(db, RUTA.usuarios, uid));
+    mostrarToast(`${nombre} fue quitado del sistema.`, "exito");
+    await cargarUsuarios();
+    renderizarUsuarios();
+  } catch (err) {
+    console.error(err);
+    mostrarToast("No se pudo quitar al usuario.", "error");
+  }
 }
 document.getElementById("form-nuevo-usuario").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -940,6 +1141,8 @@ document.getElementById("form-nuevo-usuario").addEventListener("submit", async (
 function cargarFormularioConfiguracion() {
   document.getElementById("config-nombre-sociedad").value = estado.configuracion.nombreSociedad || "";
   document.getElementById("config-nombre-iglesia").value = estado.configuracion.nombreIglesia || "";
+  document.getElementById("config-email-contacto").value = estado.configuracion.emailContacto || "";
+  document.getElementById("config-direccion").value = estado.configuracion.direccion || "";
   document.getElementById("config-saldo-inicial").value = estado.configuracion.saldoInicialGeneral || 0;
 }
 document.getElementById("form-configuracion").addEventListener("submit", async (e) => {
@@ -947,10 +1150,12 @@ document.getElementById("form-configuracion").addEventListener("submit", async (
   if (estado.usuarioActual.rol !== "admin") return;
   const nombreSociedad = document.getElementById("config-nombre-sociedad").value.trim();
   const nombreIglesia = document.getElementById("config-nombre-iglesia").value.trim();
+  const emailContacto = document.getElementById("config-email-contacto").value.trim();
+  const direccion = document.getElementById("config-direccion").value.trim();
   const saldoInicialGeneral = parseFloat(document.getElementById("config-saldo-inicial").value) || 0;
   try {
-    await setDoc(doc(db, RUTA.configuracion, "general"), { nombreSociedad, nombreIglesia, saldoInicialGeneral }, { merge: true });
-    estado.configuracion = { ...estado.configuracion, nombreSociedad, nombreIglesia, saldoInicialGeneral };
+    await setDoc(doc(db, RUTA.configuracion, "general"), { nombreSociedad, nombreIglesia, emailContacto, direccion, saldoInicialGeneral }, { merge: true });
+    estado.configuracion = { ...estado.configuracion, nombreSociedad, nombreIglesia, emailContacto, direccion, saldoInicialGeneral };
     mostrarToast("Configuración guardada.", "exito");
     renderizarDashboard();
   } catch (err) {

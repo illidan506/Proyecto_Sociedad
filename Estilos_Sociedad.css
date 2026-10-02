@@ -980,6 +980,31 @@ td.num {
     background: var(--rojo);
 }
 
+/* ================= ACTIVIDADES (opciones del formulario) ================= */
+.opciones-radio {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding-top: 2px;
+}
+
+.opciones-radio label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: .92rem;
+    font-weight: 500;
+    color: var(--gris-texto);
+    cursor: pointer;
+}
+
+.opciones-radio input[type="radio"] {
+    width: 17px;
+    height: 17px;
+    accent-color: var(--azul-primario);
+    cursor: pointer;
+}
+
 /* ================= IMPRESIÓN ================= */
 @media print {
     body * {
