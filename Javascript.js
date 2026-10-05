@@ -865,7 +865,7 @@ function renderizarInformeEnPantalla() {
   document.getElementById("informe-resumen-documentacion").textContent = totalMov === 0
     ? "No hay movimientos registrados en este período."
     : `${conComprobante} de ${totalMov} movimiento(s) cuentan con comprobante adjunto.` +
-      (inf.movimientosSinComprobante.length ? ` Sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
+    (inf.movimientosSinComprobante.length ? ` Sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
 
   const badge = document.getElementById("informe-estado-periodo");
   badge.textContent = inf.periodo.cerrado ? "Período cerrado" : "Período abierto";
@@ -952,11 +952,13 @@ async function exportarInformeAWord() {
     }
     function filaTotalDetalle(totalMonto) {
       const anchoEtiqueta = ANCHOS[0] + ANCHOS[1] + ANCHOS[2] + ANCHOS[3] + ANCHOS[4];
-      return new TableRow({ children: [
-        celda("TOTAL", { italica: true, ancho: anchoEtiqueta, spanColumnas: 5, alinear: AlignmentType.RIGHT }),
-        celda(formatearMoneda(totalMonto), { ancho: ANCHOS[5], alinear: AlignmentType.RIGHT, resaltado: VERDE_TOTAL }),
-        celda("", { ancho: ANCHOS[6] }),
-      ] });
+      return new TableRow({
+        children: [
+          celda("TOTAL", { italica: true, ancho: anchoEtiqueta, spanColumnas: 5, alinear: AlignmentType.RIGHT }),
+          celda(formatearMoneda(totalMonto), { ancho: ANCHOS[5], alinear: AlignmentType.RIGHT, resaltado: VERDE_TOTAL }),
+          celda("", { ancho: ANCHOS[6] }),
+        ]
+      });
     }
     function bloqueDetalle(lista) {
       if (lista.length === 0) return [new Paragraph({ children: [new TextRun({ text: "No se registraron movimientos en este período.", italics: true, size: 19, color: "5B7184" })] })];
@@ -988,7 +990,7 @@ async function exportarInformeAWord() {
     const textoDocumentacion = totalMov === 0
       ? "No hay movimientos registrados en este período."
       : `${conComprobante} de ${totalMov} movimiento(s) cuentan con comprobante adjunto.` +
-        (inf.movimientosSinComprobante.length ? ` Movimientos sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
+      (inf.movimientosSinComprobante.length ? ` Movimientos sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
 
     // Pie de página estilo "barra celeste con datos de contacto", tomado del informe de referencia.
     const partesPie = [cfg.nombreSociedad || "SEVIDA"];
@@ -1000,20 +1002,24 @@ async function exportarInformeAWord() {
       children: [new Table({
         width: { size: ANCHO_TABLA, type: WidthType.DXA },
         borders: { top: SIN_BORDE, bottom: SIN_BORDE, left: SIN_BORDE, right: SIN_BORDE, insideHorizontal: SIN_BORDE, insideVertical: SIN_BORDE },
-        rows: [new TableRow({ children: [new TableCell({
-          width: { size: ANCHO_TABLA, type: WidthType.DXA },
-          shading: { type: ShadingType.CLEAR, color: "auto", fill: "D3E9F5" },
-          margins: { top: 90, bottom: 90, left: 150, right: 150 },
-          children: [
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: textoPie, size: 16, color: "20303D" })] }),
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [
-              new TextRun({ text: "Página ", size: 14, color: "5B7184" }),
-              new TextRun({ children: [PageNumber.CURRENT], size: 14, color: "5B7184" }),
-              new TextRun({ text: " de ", size: 14, color: "5B7184" }),
-              new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 14, color: "5B7184" }),
-            ] }),
-          ],
-        })] })],
+        rows: [new TableRow({
+          children: [new TableCell({
+            width: { size: ANCHO_TABLA, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, color: "auto", fill: "D3E9F5" },
+            margins: { top: 90, bottom: 90, left: 150, right: 150 },
+            children: [
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: textoPie, size: 16, color: "20303D" })] }),
+              new Paragraph({
+                alignment: AlignmentType.CENTER, children: [
+                  new TextRun({ text: "Página ", size: 14, color: "5B7184" }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 14, color: "5B7184" }),
+                  new TextRun({ text: " de ", size: 14, color: "5B7184" }),
+                  new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 14, color: "5B7184" }),
+                ]
+              }),
+            ],
+          })]
+        })],
       })],
     });
 
@@ -1030,12 +1036,14 @@ async function exportarInformeAWord() {
           new Paragraph({ spacing: { after: 280 }, border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: "1E88C7", space: 4 } }, children: [new TextRun({ text: " " })] }),
 
           new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("Resumen financiero")] }),
-          new Table({ width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: [5233, 5233], rows: [
-            filaResumen("Saldo inicial", formatearMoneda(inf.saldoInicial), { resaltado: CELESTE_SALDO }),
-            filaResumen("Total ingresos", formatearMoneda(inf.totalIngresos), { resaltado: VERDE_TOTAL }),
-            filaResumen("Total egresos", formatearMoneda(inf.totalEgresos), { resaltado: VERDE_TOTAL }),
-            filaResumen("Saldo final", formatearMoneda(inf.saldoFinal), { destacado: true, resaltado: CELESTE_SALDO }),
-          ] }),
+          new Table({
+            width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: [5233, 5233], rows: [
+              filaResumen("Saldo inicial", formatearMoneda(inf.saldoInicial), { resaltado: CELESTE_SALDO }),
+              filaResumen("Total ingresos", formatearMoneda(inf.totalIngresos), { resaltado: VERDE_TOTAL }),
+              filaResumen("Total egresos", formatearMoneda(inf.totalEgresos), { resaltado: VERDE_TOTAL }),
+              filaResumen("Saldo final", formatearMoneda(inf.saldoFinal), { destacado: true, resaltado: CELESTE_SALDO }),
+            ]
+          }),
 
           new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 320 }, children: [new TextRun("Detalle de ingresos")] }),
           ...bloqueDetalle(inf.ingresos),
