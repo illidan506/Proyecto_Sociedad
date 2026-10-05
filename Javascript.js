@@ -6,11 +6,12 @@
 /* ---------- 1. FIREBASE ---------- */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
+  setPersistence, inMemoryPersistence
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
-  runTransaction, serverTimestamp, Timestamp
+  runTransaction, serverTimestamp, Timestamp, onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
   getStorage, ref, uploadBytes, getDownloadURL
@@ -29,6 +30,10 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+
+// Sin esto, Firebase recuerda la sesión en el navegador y la próxima vez que
+// alguien abre el link entra directo, sin pedir correo ni contraseña.
+await setPersistence(auth, inMemoryPersistence);
 
 // Segunda instancia de Firebase — se usa SOLO para crear cuentas de miembros
 // sin cerrar la sesión del administrador que las está creando.
@@ -164,9 +169,27 @@ function listaPeriodosDisponibles() {
 }
 
 /* ---------- 5. CARGA DE DATOS ---------- */
-async function cargarMovimientos() {
-  const snap = await getDocs(collection(db, RUTA.movimientos));
-  estado.movimientos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+// Escucha movimientos en tiempo real: la primera vez resuelve la promesa (igual que una
+// carga normal), y de ahí en adelante actualiza sola la vista cada vez que algo cambia,
+// sin importar desde qué dispositivo se hizo el cambio.
+let detenerListenerMovimientos = null;
+function cargarMovimientos() {
+  return new Promise((resolve) => {
+    if (detenerListenerMovimientos) detenerListenerMovimientos();
+    let esPrimeraCarga = true;
+    detenerListenerMovimientos = onSnapshot(
+      collection(db, RUTA.movimientos),
+      (snap) => {
+        estado.movimientos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        if (esPrimeraCarga) { esPrimeraCarga = false; resolve(); }
+        else actualizarVistaActual();
+      },
+      (error) => {
+        console.error("No se pudo sincronizar movimientos:", error);
+        if (esPrimeraCarga) { esPrimeraCarga = false; resolve(); }
+      }
+    );
+  });
 }
 async function cargarPeriodos() {
   const snap = await getDocs(collection(db, RUTA.periodos));
@@ -530,10 +553,36 @@ document.getElementById("mov-actividad").addEventListener("change", (e) => {
   document.getElementById("mov-actividad-nueva").classList.toggle("oculto", e.target.value !== "__nueva__");
 });
 
+// Las fotos de celular suelen pesar varios MB; eso es lo que más alarga el guardado.
+// Si es una imagen, la reducimos antes de subir (un recibo se lee perfecto igual).
+// Si falla la compresión por cualquier motivo, se sube el archivo original sin problema.
+async function comprimirImagenSiAplica(archivo) {
+  if (!archivo.type || !archivo.type.startsWith("image/")) return archivo;
+  try {
+    const bitmap = await createImageBitmap(archivo);
+    const LADO_MAXIMO = 1600;
+    let { width, height } = bitmap;
+    if (width > LADO_MAXIMO || height > LADO_MAXIMO) {
+      const escala = LADO_MAXIMO / Math.max(width, height);
+      width = Math.round(width * escala);
+      height = Math.round(height * escala);
+    }
+    const lienzo = document.createElement("canvas");
+    lienzo.width = width; lienzo.height = height;
+    lienzo.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise((resolve) => lienzo.toBlob(resolve, "image/jpeg", 0.75));
+    if (!blob || blob.size >= archivo.size) return archivo;
+    return new File([blob], (archivo.name || "comprobante").replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch (e) {
+    console.warn("No se pudo comprimir la imagen, se sube el original:", e);
+    return archivo;
+  }
+}
 async function subirComprobante(archivo, tipo) {
-  const nombreSeguro = `${Date.now()}_${archivo.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+  const archivoFinal = await comprimirImagenSiAplica(archivo);
+  const nombreSeguro = `${Date.now()}_${archivoFinal.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
   const referencia = ref(storage, `sociedad_jovenes/comprobantes/${tipo}/${nombreSeguro}`);
-  await uploadBytes(referencia, archivo);
+  await uploadBytes(referencia, archivoFinal);
   const url = await getDownloadURL(referencia);
   return { url, nombre: archivo.name };
 }
@@ -617,34 +666,40 @@ document.getElementById("form-movimiento").addEventListener("submit", async (eve
         actividadId, actividadNombre,
         periodoId, actualizadoEn: serverTimestamp(),
       };
-      if (archivo) {
-        const comprobante = await subirComprobante(archivo, tipo);
+      // Subir el comprobante y asegurar el período al mismo tiempo: son independientes.
+      const [comprobante] = await Promise.all([
+        archivo ? subirComprobante(archivo, tipo) : Promise.resolve(null),
+        asegurarPeriodoExiste(periodoId),
+      ]);
+      if (comprobante) {
         datosActualizados.comprobanteURL = comprobante.url;
         datosActualizados.comprobanteNombre = comprobante.nombre;
       }
       await updateDoc(doc(db, RUTA.movimientos, idEdicion), datosActualizados);
-      await asegurarPeriodoExiste(periodoId);
       mostrarToast("Movimiento actualizado correctamente.", "exito");
     } else {
-      const numero = await obtenerSiguienteNumero(tipo);
-      let comprobante = null;
-      if (archivo) comprobante = await subirComprobante(archivo, tipo);
-      await addDoc(collection(db, RUTA.movimientos), {
-        numero, tipo, fecha: Timestamp.fromDate(fecha), concepto, categoria, responsable,
-        proveedor: tipo === "egreso" ? proveedor : "", monto, metodo, observacion,
-        comprobanteURL: comprobante ? comprobante.url : null,
-        comprobanteNombre: comprobante ? comprobante.nombre : null,
-        actividadId, actividadNombre,
-        periodoId, estado: "activo", motivoAnulacion: null,
-        creadoPor: estado.usuarioActual.uid, creadoEn: serverTimestamp(), actualizadoEn: serverTimestamp(),
-      });
-      await asegurarPeriodoExiste(periodoId);
+      // El número de movimiento y la subida del comprobante no dependen entre sí: en paralelo.
+      const [numero, comprobante] = await Promise.all([
+        obtenerSiguienteNumero(tipo),
+        archivo ? subirComprobante(archivo, tipo) : Promise.resolve(null),
+      ]);
+      // Guardar el movimiento y asegurar que exista el período tampoco dependen entre sí.
+      await Promise.all([
+        addDoc(collection(db, RUTA.movimientos), {
+          numero, tipo, fecha: Timestamp.fromDate(fecha), concepto, categoria, responsable,
+          proveedor: tipo === "egreso" ? proveedor : "", monto, metodo, observacion,
+          comprobanteURL: comprobante ? comprobante.url : null,
+          comprobanteNombre: comprobante ? comprobante.nombre : null,
+          actividadId, actividadNombre,
+          periodoId, estado: "activo", motivoAnulacion: null,
+          creadoPor: estado.usuarioActual.uid, creadoEn: serverTimestamp(), actualizadoEn: serverTimestamp(),
+        }),
+        asegurarPeriodoExiste(periodoId),
+      ]);
       mostrarToast(`${tipo === "ingreso" ? "Ingreso" : "Egreso"} registrado correctamente.`, "exito");
     }
 
     cerrarModal("modal-movimiento");
-    await cargarMovimientos();
-    actualizarVistaActual();
   } catch (error) {
     console.error(error);
     mostrarToast("Ocurrió un error al guardar. Revisa tu conexión e inténtalo de nuevo.", "error");
@@ -661,8 +716,6 @@ async function anularMovimiento(id) {
     await updateDoc(doc(db, RUTA.movimientos, id), { estado: "anulado", motivoAnulacion: motivo.trim(), actualizadoEn: serverTimestamp() });
     mostrarToast("Movimiento anulado.", "exito");
     cerrarModal("modal-movimiento");
-    await cargarMovimientos();
-    actualizarVistaActual();
   } catch (err) {
     console.error(err);
     mostrarToast("No se pudo anular el movimiento.", "error");
