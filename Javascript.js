@@ -586,6 +586,18 @@ async function subirComprobante(archivo, tipo) {
   const url = await getDownloadURL(referencia);
   return { url, nombre: archivo.name };
 }
+// El guardado del movimiento no espera esto: sube el archivo y recién entonces lo
+// adjunta al movimiento que ya quedó guardado. Así "Guardar" nunca depende de la subida.
+function adjuntarComprobanteEnSegundoPlano(idMovimiento, archivo, tipo) {
+  subirComprobante(archivo, tipo)
+    .then((comprobante) => updateDoc(doc(db, RUTA.movimientos, idMovimiento), {
+      comprobanteURL: comprobante.url, comprobanteNombre: comprobante.nombre, actualizadoEn: serverTimestamp(),
+    }))
+    .catch((err) => {
+      console.error("No se pudo subir el comprobante en segundo plano:", err);
+      mostrarToast("El movimiento se guardó, pero el comprobante no se pudo subir. Ábrelo y adjúntalo de nuevo.", "error");
+    });
+}
 
 async function obtenerSiguienteNumero(tipo) {
   const referencia = doc(db, RUTA.configuracion, "contadores");
@@ -666,36 +678,29 @@ document.getElementById("form-movimiento").addEventListener("submit", async (eve
         actividadId, actividadNombre,
         periodoId, actualizadoEn: serverTimestamp(),
       };
-      // Subir el comprobante y asegurar el período al mismo tiempo: son independientes.
-      const [comprobante] = await Promise.all([
-        archivo ? subirComprobante(archivo, tipo) : Promise.resolve(null),
+      await Promise.all([
+        updateDoc(doc(db, RUTA.movimientos, idEdicion), datosActualizados),
         asegurarPeriodoExiste(periodoId),
       ]);
-      if (comprobante) {
-        datosActualizados.comprobanteURL = comprobante.url;
-        datosActualizados.comprobanteNombre = comprobante.nombre;
-      }
-      await updateDoc(doc(db, RUTA.movimientos, idEdicion), datosActualizados);
+      // El comprobante se sube después, sin bloquear el guardado: apenas termine, se
+      // adjunta solo (el listener en tiempo real lo refleja en pantalla automáticamente).
+      if (archivo) adjuntarComprobanteEnSegundoPlano(idEdicion, archivo, tipo);
       mostrarToast("Movimiento actualizado correctamente.", "exito");
     } else {
-      // El número de movimiento y la subida del comprobante no dependen entre sí: en paralelo.
-      const [numero, comprobante] = await Promise.all([
-        obtenerSiguienteNumero(tipo),
-        archivo ? subirComprobante(archivo, tipo) : Promise.resolve(null),
-      ]);
-      // Guardar el movimiento y asegurar que exista el período tampoco dependen entre sí.
-      await Promise.all([
+      const numero = await obtenerSiguienteNumero(tipo);
+      const [refNuevo] = await Promise.all([
         addDoc(collection(db, RUTA.movimientos), {
           numero, tipo, fecha: Timestamp.fromDate(fecha), concepto, categoria, responsable,
           proveedor: tipo === "egreso" ? proveedor : "", monto, metodo, observacion,
-          comprobanteURL: comprobante ? comprobante.url : null,
-          comprobanteNombre: comprobante ? comprobante.nombre : null,
+          comprobanteURL: null, comprobanteNombre: null,
           actividadId, actividadNombre,
           periodoId, estado: "activo", motivoAnulacion: null,
           creadoPor: estado.usuarioActual.uid, creadoEn: serverTimestamp(), actualizadoEn: serverTimestamp(),
         }),
         asegurarPeriodoExiste(periodoId),
       ]);
+      // Igual aquí: el movimiento ya quedó guardado, el comprobante se adjunta solo apenas suba.
+      if (archivo) adjuntarComprobanteEnSegundoPlano(refNuevo.id, archivo, tipo);
       mostrarToast(`${tipo === "ingreso" ? "Ingreso" : "Egreso"} registrado correctamente.`, "exito");
     }
 
@@ -865,7 +870,7 @@ function renderizarInformeEnPantalla() {
   document.getElementById("informe-resumen-documentacion").textContent = totalMov === 0
     ? "No hay movimientos registrados en este período."
     : `${conComprobante} de ${totalMov} movimiento(s) cuentan con comprobante adjunto.` +
-    (inf.movimientosSinComprobante.length ? ` Sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
+      (inf.movimientosSinComprobante.length ? ` Sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
 
   const badge = document.getElementById("informe-estado-periodo");
   badge.textContent = inf.periodo.cerrado ? "Período cerrado" : "Período abierto";
@@ -952,13 +957,11 @@ async function exportarInformeAWord() {
     }
     function filaTotalDetalle(totalMonto) {
       const anchoEtiqueta = ANCHOS[0] + ANCHOS[1] + ANCHOS[2] + ANCHOS[3] + ANCHOS[4];
-      return new TableRow({
-        children: [
-          celda("TOTAL", { italica: true, ancho: anchoEtiqueta, spanColumnas: 5, alinear: AlignmentType.RIGHT }),
-          celda(formatearMoneda(totalMonto), { ancho: ANCHOS[5], alinear: AlignmentType.RIGHT, resaltado: VERDE_TOTAL }),
-          celda("", { ancho: ANCHOS[6] }),
-        ]
-      });
+      return new TableRow({ children: [
+        celda("TOTAL", { italica: true, ancho: anchoEtiqueta, spanColumnas: 5, alinear: AlignmentType.RIGHT }),
+        celda(formatearMoneda(totalMonto), { ancho: ANCHOS[5], alinear: AlignmentType.RIGHT, resaltado: VERDE_TOTAL }),
+        celda("", { ancho: ANCHOS[6] }),
+      ] });
     }
     function bloqueDetalle(lista) {
       if (lista.length === 0) return [new Paragraph({ children: [new TextRun({ text: "No se registraron movimientos en este período.", italics: true, size: 19, color: "5B7184" })] })];
@@ -990,7 +993,7 @@ async function exportarInformeAWord() {
     const textoDocumentacion = totalMov === 0
       ? "No hay movimientos registrados en este período."
       : `${conComprobante} de ${totalMov} movimiento(s) cuentan con comprobante adjunto.` +
-      (inf.movimientosSinComprobante.length ? ` Movimientos sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
+        (inf.movimientosSinComprobante.length ? ` Movimientos sin comprobante: ${inf.movimientosSinComprobante.map((m) => "N°" + m.numero).join(", ")}.` : "");
 
     // Pie de página estilo "barra celeste con datos de contacto", tomado del informe de referencia.
     const partesPie = [cfg.nombreSociedad || "SEVIDA"];
@@ -1002,24 +1005,20 @@ async function exportarInformeAWord() {
       children: [new Table({
         width: { size: ANCHO_TABLA, type: WidthType.DXA },
         borders: { top: SIN_BORDE, bottom: SIN_BORDE, left: SIN_BORDE, right: SIN_BORDE, insideHorizontal: SIN_BORDE, insideVertical: SIN_BORDE },
-        rows: [new TableRow({
-          children: [new TableCell({
-            width: { size: ANCHO_TABLA, type: WidthType.DXA },
-            shading: { type: ShadingType.CLEAR, color: "auto", fill: "D3E9F5" },
-            margins: { top: 90, bottom: 90, left: 150, right: 150 },
-            children: [
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: textoPie, size: 16, color: "20303D" })] }),
-              new Paragraph({
-                alignment: AlignmentType.CENTER, children: [
-                  new TextRun({ text: "Página ", size: 14, color: "5B7184" }),
-                  new TextRun({ children: [PageNumber.CURRENT], size: 14, color: "5B7184" }),
-                  new TextRun({ text: " de ", size: 14, color: "5B7184" }),
-                  new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 14, color: "5B7184" }),
-                ]
-              }),
-            ],
-          })]
-        })],
+        rows: [new TableRow({ children: [new TableCell({
+          width: { size: ANCHO_TABLA, type: WidthType.DXA },
+          shading: { type: ShadingType.CLEAR, color: "auto", fill: "D3E9F5" },
+          margins: { top: 90, bottom: 90, left: 150, right: 150 },
+          children: [
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: textoPie, size: 16, color: "20303D" })] }),
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [
+              new TextRun({ text: "Página ", size: 14, color: "5B7184" }),
+              new TextRun({ children: [PageNumber.CURRENT], size: 14, color: "5B7184" }),
+              new TextRun({ text: " de ", size: 14, color: "5B7184" }),
+              new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 14, color: "5B7184" }),
+            ] }),
+          ],
+        })] })],
       })],
     });
 
@@ -1036,14 +1035,12 @@ async function exportarInformeAWord() {
           new Paragraph({ spacing: { after: 280 }, border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: "1E88C7", space: 4 } }, children: [new TextRun({ text: " " })] }),
 
           new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("Resumen financiero")] }),
-          new Table({
-            width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: [5233, 5233], rows: [
-              filaResumen("Saldo inicial", formatearMoneda(inf.saldoInicial), { resaltado: CELESTE_SALDO }),
-              filaResumen("Total ingresos", formatearMoneda(inf.totalIngresos), { resaltado: VERDE_TOTAL }),
-              filaResumen("Total egresos", formatearMoneda(inf.totalEgresos), { resaltado: VERDE_TOTAL }),
-              filaResumen("Saldo final", formatearMoneda(inf.saldoFinal), { destacado: true, resaltado: CELESTE_SALDO }),
-            ]
-          }),
+          new Table({ width: { size: ANCHO_TABLA, type: WidthType.DXA }, columnWidths: [5233, 5233], rows: [
+            filaResumen("Saldo inicial", formatearMoneda(inf.saldoInicial), { resaltado: CELESTE_SALDO }),
+            filaResumen("Total ingresos", formatearMoneda(inf.totalIngresos), { resaltado: VERDE_TOTAL }),
+            filaResumen("Total egresos", formatearMoneda(inf.totalEgresos), { resaltado: VERDE_TOTAL }),
+            filaResumen("Saldo final", formatearMoneda(inf.saldoFinal), { destacado: true, resaltado: CELESTE_SALDO }),
+          ] }),
 
           new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 320 }, children: [new TextRun("Detalle de ingresos")] }),
           ...bloqueDetalle(inf.ingresos),
